@@ -56,7 +56,10 @@ AdmissionController: Add some plugins to `--admission-control=...`!
 
 Kubelet Settings: by default, the kubelet offers a command API used by the kube-apiserver. Using this, one may execute commands on a specific node. To secure, firewall port `10250/TCP` (listed above also), and set `--authorization-mode=Webhook` and `anonymous-auth=false`.
 
-### **
+### *Use Network Policies!*
+Network Policies are firewall rules for K8s. They secure internal cluster comms and external cluster access. **By default, there are no restrictions in place to restrict pods from talking to each other.**
+* Good starting point: https://github.com/ahmetb/kubernetes-network-policy-recipes
+
 
 ### **
 
