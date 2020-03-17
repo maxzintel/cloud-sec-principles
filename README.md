@@ -60,8 +60,15 @@ Kubelet Settings: by default, the kubelet offers a command API used by the kube-
 Network Policies are firewall rules for K8s. They secure internal cluster comms and external cluster access. **By default, there are no restrictions in place to restrict pods from talking to each other.**
 * Good starting point: https://github.com/ahmetb/kubernetes-network-policy-recipes
 
-
-### **
+### *Pod Security Policies*
+These allow for controlling security sensitive aspects of pod specification. Most/All of our pods do not need privileged or host access. One strategy is setting up two security policies. One `default` that is not privileged, and one `privileged` that is... privileged. The document this information is from (`freach`) specifies two different sets of policies depending on whether AppArmor is supported in our clusters or not. **The YAML for these policies is present on the github repo.**
+* These policies are evaluated based on access to the policy. When multiple policies are available, the policy controller selects them in the following order:
+  * 1. Policies that validate the pod without altering it.
+  * 2. If it is a pod creation request, the first valid policy, alphabetically, is used.
+  * 3. An error is returned otherwise, as pod mutations are disallowed during update ops.
+* For `default` pods, authorize the requesting user or target pod's service account to use the policy. Do this by allowing the `use` verb in the policy.
+All pods should use the `default` policy, by default. Only pods like `kube-apiserver`, `kube-controller-manager`, `kube-scheduler`, or `etcd` should get privileged access.
+* To allow `privileged` pods to function, grant cluster nodes and the legacy kubelet user access to the privileged policy for the `kube-system` namespace and set `--authorization-mode=Node,RBAC`.
 
 ### **
 
