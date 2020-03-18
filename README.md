@@ -61,7 +61,7 @@ Network Policies are firewall rules for K8s. They secure internal cluster comms 
 * Good starting point: https://github.com/ahmetb/kubernetes-network-policy-recipes
 
 ### *Pod Security Policies*
-These allow for controlling security sensitive aspects of pod specification. Most/All of our pods do not need privileged or host access. One strategy is setting up two security policies. One `default` that is not privileged, and one `privileged` that is... privileged. The document this information is from (`freach`) specifies two different sets of policies depending on whether AppArmor is supported in our clusters or not. **The YAML for these policies is present on the github repo.**
+These allow for controlling security sensitive aspects of pod specification. Most/All of our pods do not need privileged or host access. One strategy is setting up two security policies. One `default` that is not privileged, and one `privileged` that is... privileged. The repository `freach/kubernetes-security-best-practice` specifies two different sets of policies depending on whether AppArmor is supported in our clusters or not. **The YAML for these policies is present on the github repo.**
 * These policies are evaluated based on access to the policy. When multiple policies are available, the policy controller selects them in the following order:
   * 1. Policies that validate the pod without altering it.
   * 2. If it is a pod creation request, the first valid policy, alphabetically, is used.
@@ -69,8 +69,77 @@ These allow for controlling security sensitive aspects of pod specification. Mos
 * For `default` pods, authorize the requesting user or target pod's service account to use the policy. Do this by allowing the `use` verb in the policy.
 All pods should use the `default` policy, by default. Only pods like `kube-apiserver`, `kube-controller-manager`, `kube-scheduler`, or `etcd` should get privileged access.
 * To allow `privileged` pods to function, grant cluster nodes and the legacy kubelet user access to the privileged policy for the `kube-system` namespace and set `--authorization-mode=Node,RBAC`.
+* The network provider will also need privileged access. For `kops`, create the following role binding:
+`kubectl create -n kube-system -f - <<EOF`
+```yaml
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: privileged-psp-dns
+  namespace: kube-system
+roleRef:
+  kind: ClusterRole
+  name: privileged-psp
+  apiGroup: rbac.authorization.k8s.io
+subjects:
+- kind: ServiceAccount
+  name: kube-dns-autoscaler
+  namespace: kube-system
+- kind: ServiceAccount
+  name: dns-controller
+  namespace: kube-system
+```
+`EOF`
+Once this role binding is created, look through the namespaces and find all pods that require priv access. Create role bindings for them accordingly. Once all pods are addressed, add `PodSecurityPolicy` to the `--admission-control=...` of your kube-apiserver config and restart the API. Test with a deployment like: (**this should FAIL**)
+`kubectl create -f -<<EOF`
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: privileged
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: privileged
+  template:
+    metadata:
+      labels:
+        name: privileged        
+    spec:
+      containers:
+        - name: pause
+          image: k8s.gcr.io/pause
+          securityContext:
+            privileged: true
+```
+`EOF`
 
-### **
+### *Restrict 'docker image pull'*
+By default, anyone with access to the Docker socket or k8s api can pull any image they want. This is a great way to end up mining bitcoin for someone.
+* Good starting point: `https://github.com/freach/docker-image-policy-plugin`
+  * Hooks into the internal Docker API and enforces black/white list rules to restrict what images can be pulled.
+Alternatively, use the k8s `AdmissionController` to intercept image pulls via webservice and `ImagePolicyWebhook`: https://kubernetes.io/docs/reference/access-authn-authz/admission-controllers/#imagepolicywebhook
+
+### *The Kubernetes Dashboard*
+Securing this thing is paramount. By default, in certain versions of k8s (1.8.0 and prior) the `kubernetes-dashboard` plugin was granted a service account with **full cluster access**. The idea was that someone should be able to manage all aspects of the cluster from the dashboard. In *most* cases, this is playing with fire. The steps to secure the dashboard are as follows:
+* Verify there is no `ClusterRoleBinding` to `cluster-admin` leftover. If there is, someone can just click 'SKIP' on sign-in and get full access.
+  * `kubectl -n kube-system get clusterrolebinding kubernetes-dashboard -o yaml`
+* Do not expose the dashboard to the internet.
+* If using Network Policies, block requests to the dashboard coming from inside the cluster (other pods). Note: this will not block requests coming through `kubectl proxy`.
+```yaml
+kind: NetworkPolicy
+apiVersion: networking.k8s.io/v1
+metadata:
+  name: deny-dashboard
+  namespace: kube-system
+spec:
+  podSelector:
+    matchLabels:
+      k8s-app: kubernetes-dashboard
+  policyTypes:
+  - Ingress
+```
 
 ## Sources:
 * https://github.com/freach/kubernetes-security-best-practice
