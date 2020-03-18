@@ -2,6 +2,25 @@
 **with focus on securing enterprise kubernetes deployments**
 References/Sources aggregated will be listed at the bottom of this document.
 
+## Why is this important? Do you still have to if your cluster is hosted in a private intranet?
+Let me tell ya! A malicious user with shell in a container can, by **default**:
+* Exfiltrate source code, keys, tokens, and credentials.
+* Elevate privileges inside k8s to access **ALL** workloads.
+* Gain **ROOT** access to the underlying cluster nodes.
+* Compromise other systems and data in the cloud account **OUTSIDE** the cluster.
+That's pretty significant. Plus, on top of all that, defaults in use early in a clusters life tend to stay in use. Systems hardened late tend to break.
+
+## AKS Security Testing
+We are going to start with locking down our AKS cluster using `kube-bench`. `kube-bench` applies a k8s security benchmark (from CIS)against the master and control plane components. It sets specific guidelines that help you secure your cluster setup. Since AKS is managed by Azure, we cannot run `kube-bench` against our master nodes, so everything in this section will be used only on worker nodes/non-master control plane components.
+* For an in-depth guide, go here: https://github.com/aquasecurity/kube-bench
+1. Create an AKS cluster with RBAC enabled.
+2. Use the `kubectl-enter-plugin` (https://github.com/kvaps/kubectl-enter) to enter a worker node `kubectl-enter {node-name}`, or just ssh to a node, open port 22, and assign it a public ip (temporarily, for testing).
+3. Run the CIS benchmark to see what we can improve: 
+```
+docker run --rm -v `pwd`:/host aquasec/kube-bench:latest install ./kube-bench node
+```
+The output will consist of `PASS`, `FAIL`, `WARN`, and `INFO`. If certain failures or warnings are not relevant to your environment, go to the yaml file and set `type: "skip"`. Once you have your results, proceed to the following section to learn how to further harden your cluster.
+
 ## Cloud Agnostic Bits
 **Common attack vectors, best practices, and relevant documentation**
 As you will see below, the actionable items follow the principals of Role-Based Access Control (RBAC) and, in general, exposing as little as possible to the outside world. The intern probably should not have full cluster access, nor should the disgruntled ex-employee have an IAM role allowing them to stop EC2 instances and delete EBS volumes. Mitigate risk by minimizing the amount of information and power users can obtain. Document and monitor everything.
@@ -143,6 +162,9 @@ spec:
 
 ## Sources:
 * https://github.com/freach/kubernetes-security-best-practice
+* https://github.com/ahmetb/kubernetes-network-policy-recipes
+* https://github.com/freach/docker-image-policy-plugin
+* https://github.com/aquasecurity/kube-bench
 * https://www.cyberark.com/threat-research-blog/kubernetes-pentest-methodology-part-1/
 * https://www.youtube.com/watch?v=vTgQLzeBfRU
 * https://www.youtube.com/watch?v=ohTq0no0ZVU
