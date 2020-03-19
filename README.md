@@ -9,6 +9,66 @@ Let me tell ya! A malicious user with shell in a container can, by **default**:
 * Gain **ROOT** access to the underlying cluster nodes.
 * Compromise other systems and data in the cloud account **OUTSIDE** the cluster.
 That's pretty significant. Plus, on top of all that, defaults in use early in a clusters life tend to stay in use. Systems hardened late tend to break.
+* K8s 1.8 and later has a lot of great features, like RBAC, baked in. If using versions older than that (at this point, you should not be) securing your cluster will require a lot of elbow grease.
+
+## The Low Hanging Fruit
+* RBAC
+* Least Privilege
+* Logging
+
+## The Challenges of Hardening
+* CIS OS Benchmarks are not aware of the actual workloads (K8s).
+* CIS K8s Benchmarks only cover core settings, but not installer/service specific implementations.
+* Hardening is **highly** dependent on our choice of addons, plugins, and workloads.
+* Again, the defaults are not enough.
+
+## Attack Driven Hardening
+There are 4 main steps here:
+1. What can I see/do/access next?
+2. Find a reasonable (quick) path to access.
+3. Go back to step 1 until `game over`.
+4. Work backwards and harden as you go.
+As an External Attacker, step 1 looks like:
+* Access ssh on nodes?
+* Access the api server?
+* Obtain shell on a container in the cluster?
+  * 3 ways: 1) Exploit an app running in an exposed container. 2) Trick an admin into running a compromised container. 3) Compromise a project's dev (git keys) and modify their project images/binary releases.
+
+What, specifically, could an attacker try?
+* Install custom tools, and thus prove internet access:
+```bash
+# Install Tools
+$ apt-get install curl nc nmap
+
+# Install kubectl
+$ curl -sLO https://storage.googleapis.com/kubernetes-release/release/v1.8.4/bin/linux/amd64/kubectl
+$ chmod +x kubectl
+$ mv kubectl /bin
+```
+
+* Access the k8s api without credentials: (mostly on 1.4-1.5.)
+```bash
+$ curl -s http://10.0.0.1:8080
+```
+
+* Read Metrics from cAdvisor, Heapster, and Kubelet:
+```bash
+# cAdvisor
+$ curl -s 10.0.0.3:4194/docker/
+
+# Heapster
+$ curl -s heapster.kube-system/metrics
+
+# Kubelet
+$ curl -s http://10.0.0.3:10255/metrics
+```
+
+### Attack Demo #1 - Enumerate Metrics Endpoints
+Basic steps: 1) Find Node IP's, 2) Use curl to list all pods on nodes.
+```bash
+kubectl get nodes -o wide
+curl -sk http://${NODEIP}:4194/metrics | less
+```
 
 ## AKS Security Testing
 We are going to start with locking down our AKS cluster using `kube-bench`. `kube-bench` applies a k8s security benchmark (from CIS)against the master and control plane components. It sets specific guidelines that help you secure your cluster setup. Since AKS is managed by Azure, we cannot run `kube-bench` against our master nodes, so everything in this section will be used only on worker nodes/non-master control plane components.
