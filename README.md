@@ -3,7 +3,7 @@
 References/Sources aggregated will be listed at the bottom of this document.
 
 ## Intro:
-* Practically speaking, we will start by locking down our AKS cluster using a tool called `kube-bench`. `kube-bench` applies a k8s security benchmark (from CIS)against the master and control plane components. It sets specific guidelines that help you secure your cluster setup. 
+* Practically speaking, we will start by locking down our AKS cluster using a tool called `kube-bench`. `kube-bench` applies a k8s security benchmark (from CIS) against the master and control plane components. It sets specific guidelines that help you secure your cluster setup. 
 * Once this is complete, we will cover common vulnerability points in kubernetes, why they are vulnerabilities, and how to lock them down.
 * Lastly, we will show demos for attacks that worked, primarily, against k8s v1.7* and lower. Each attack includes code snippets, basic steps, and how to harden these cracks in a default cluster's armor.
 
@@ -66,8 +66,8 @@ That's pretty significant. Plus, on top of all that, defaults in use early in a 
 * Hardening is **highly** dependent on our choice of addons, plugins, and workloads.
 * Again, the defaults are not enough.
 
-## AKS Security Testing
-We are going to start with locking down our AKS cluster using `kube-bench`. `kube-bench` applies a k8s security benchmark (from CIS)against the master and control plane components. It sets specific guidelines that help you secure your cluster setup. Since AKS is managed by Azure, we cannot run `kube-bench` against our master nodes, so everything in this section will be used only on worker nodes/non-master control plane components.
+## Kube-bench
+Since AKS is managed by Azure, we cannot run `kube-bench` against our master nodes, so everything in this section will be used only on worker nodes/non-master control plane components.
 * For an in-depth guide, go here: https://github.com/aquasecurity/kube-bench
 1. Create an AKS cluster with RBAC enabled.
 2. Use the `kubectl-enter-plugin` (https://github.com/kvaps/kubectl-enter) to enter a worker node `kubectl-enter {node-name}`, or just ssh to a node, open port 22, and assign it a public ip (temporarily, for testing).
