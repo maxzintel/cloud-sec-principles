@@ -5,7 +5,7 @@ References/Sources aggregated will be listed at the bottom of this document.
 ## Intro:
 * Practically speaking, we will start by locking down our AKS cluster using a tool called `kube-bench`. `kube-bench` applies a k8s security benchmark (from CIS)against the master and control plane components. It sets specific guidelines that help you secure your cluster setup. 
 * Once this is complete, we will cover common vulnerability points in kubernetes, why they are vulnerabilities, and how to lock them down.
-* Lastly, we will show demos for attacks that worked, primarily, against k8s v1.8 and lower. Each attack includes code snippets, basic steps, and how to harden these cracks in a default cluster's armor.
+* Lastly, we will show demos for attacks that worked, primarily, against k8s v1.7* and lower. Each attack includes code snippets, basic steps, and how to harden these cracks in a default cluster's armor.
 
 ## Why is security important? Do you still have to if your cluster is hosted in a private intranet?
 Let me tell ya! A malicious user with shell in a container can, by **default**:
@@ -16,21 +16,49 @@ Let me tell ya! A malicious user with shell in a container can, by **default**:
 That's pretty significant. Plus, on top of all that, defaults in use early in a clusters life tend to stay in use. Systems hardened late tend to break.
 * K8s 1.8 and later has a lot of great features, like RBAC, baked in. If using versions older than that (at this point, you should not be) securing your cluster will require a lot of elbow grease.
 
-## The Low Hanging Fruit
-* RBAC
-* Least Privilege
-* Logging
-* Further...
+## The Gist
+* **RBAC**
+* **Least Privilege**
+* **Logging**
+* General Stuff...
   * Verify all your security settings properly enforce the policy.
   * Use the latest stable K8s version.
   * Audit the OS, container runtime, and k8s config using CIS benchmarking (`kube-bench`).
   * Log everything to a location outside the cluster.
-  * Image security:
-    * Use private registries and restric public reg use.
-    * Scan all images for security vulnerabilities continuously via `CoreOS Clair` or `Atomic Scan`.
-    * Decide which types/severity of issues should prevent deployments.
-    * Maintain standard base images and ensure all workloads use them.
-    * Don't run containers as root.
+* Image security:
+  * Use private registries and restric public reg use.
+  * Scan all images for security vulnerabilities continuously via `CoreOS Clair` or `Atomic Scan`.
+  * Decide which types/severity of issues should prevent deployments.
+  * Maintain standard base images and ensure all workloads use them.
+  * Don't run containers as root.
+* K8s Components (all covered more below):
+  * API Server `authorization-mode=Node,RBAC`
+  * Ensure all services protected by TLS.
+  * Ensure kubelet protects its API via `authorization-mode=Webhook`.
+  * Ensure the kube-dashboard uses a restrictive RBAC role policy and v1.7+
+  * Monitor RBAC policy failures
+  * Remove default `ServiceAccount` permissions.
+* Network Security:
+  * Filter access to the cloud provider metadata apis/url, and limit IAM permissions.
+  * Use a CNI network plugin that filers ingress/egress pod network traffic. This involves...
+    * properly labeling all pods
+    * isolate all workloads from eachother
+    * prevent workloads from egressing to the internet, the pod ip space, the node ip subnets, and other internal networks
+    * restrict all traffic coming into the kube-system namespace except kube-dns
+  * Consider a Service Mesh.
+* Workload Containment:
+  * Namespaces per tenant
+  * Default network deny inbound on all namespaces
+  * Assign CPU/RAM limits to all containers
+  * Set `automountServiceAccountToken: false` on pods where possible
+  * Use a `PodSecurityPolicy` to enforce container restrictions and to protect the node.
+  * Implement container-aware malicious activity/behavior detection.
+* Misc:
+  * Collect logs from all containers, especially RBAC.
+  * Encrypt contents of etcd, run etcd on dedicated nodes.
+  * Separate cloud accounts/vpc's/projects/resource groups.
+  * Separate clusters for dev/test and prod.
+  * Separate node pools for dif tenants.
 
 ## The Challenges of Hardening
 * CIS OS Benchmarks are not aware of the actual workloads (K8s).
